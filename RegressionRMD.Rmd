@@ -1,0 +1,290 @@
+---
+output:
+  rmarkdown: github_document
+  html_document: default
+  pdf_document: default
+---
+# Linear Regression and Regularized Regression
+
+In this tutorial I am trying to explaing how we should use regression analsys through an application.
+This work was done as one of my assignment for Data Scinece course with Prof. Jim Harner. 
+
+## Explanation of the Probelm
+Stamey et al. examined the correlation between the level of prostate-specific antigen and a number of clinical measures in men who were about to receive a radical prostatectomy. The input variables are log cancer volume (`lcavol`), log prostate weight (`lweight`), `age`, log of the amount of benign prostatic hyperplasia (`lbph`), seminal vesicle invasion (`svi`), log of capsular penetration (`lcp`), Gleason score (`gleason`), and percent of Gleason scores 4 or 5 (`pgg45`). The output (response) variable is the log of prostate-specific antigen (`lpsa`). The `train` logical variable indicates whether the observation is part of the training dataset (`train = TRUE`) or the test dataset (`train = FALSE`).
+
+The `prostate` data can be found in the `ElemStatLearn` R package.
+
+## Read in the data 
+#### 1 Read the data into R and compute the summary statistics on both the training and test datasets. Comment on any special features and compare the summaries for the two datasets.  
+
+```{r}
+library(ElemStatLearn)
+data(prostate)
+attach(prostate)
+(head(prostate))
+## Put your R code here.
+
+summary(prostate)
+prostate.train <- prostate[prostate$train==T,]
+summary(prostate.train)
+prostate.test <- prostate[prostate$train==F,]
+summary(prostate.test)
+
+prostate.exclude <- subset(prostate, select = -c(train) )
+prostate.train.exclude <- subset(prostate.train, select = -c(train) )
+prostate.test.exclude <- subset(prostate.test, select = -c(train) )
+cor(prostate.exclude)
+cor(prostate.test.exclude)
+cor(prostate.train.exclude)
+```
+
+```{r}
+boxplot(as.list(prostate))
+
+boxplot(as.list(prostate.test))
+
+boxplot(as.list(prostate.train))
+```
+
+### By Lookig at the boxplot of these datasets we can see they are almost similar to each other so we would say distribution of the training datasets and test datasets could be almost the same. However, if we just compare the correlation of testing dataset and training data set we see that lpsa ~ lbph is postive for the test dataset but it is negative for the training dataset.
+
+## Find out what input variables affects the output variable by plotting the scatterplot
+### 2 Compute the correlation matrix among the input and the response variables on the training dataset. Plot the corresponding scatterplot matrix, including a linear regression within each panel, and comment on the relationships among the variables and other features of interest.
+
+```{r}
+## Put your R code here.a
+prostate.train.exclude <- subset(prostate.train, select = -c(train) )
+prostate.train.exculde.cor <- cor(prostate.train.exclude)
+
+pairs(lpsa ~ . ,  
+      panel= function(x,y,...){
+        points(x,y ,...)
+        abline(lm(y~x) , col="grey")
+        
+      }, pch = ".", cex = 2, data = prostate.train.exclude)
+
+prostat.train.exclude.lm <- lm(lpsa ~ .,data=prostate.train.exclude)
+
+```
+### comment: By looking at the figure we can conculde that lpsa is almost independant of gleason and svi. 
+
+## After looking at the variables, now we do some test analysis to find the most effective variables on our model
+
+### 3 Fit the linear regression model on the training dataset with `lpsa` as the response to all input variables. Test that the regression coefficients are 0. Discuss in terms of the $p$-values for the individual input variables.
+
+```{r}
+
+prostate.t.e.lm <- lm(lpsa ~ lcavol + lweight+ age +  lbph + svi +lcp + gleason + pgg45 , data=prostate.train.exclude)
+
+prostate.t.e.lm$coefficients
+
+prostate.train.summary <- summary(prostate.t.e.lm)
+prostate.train.summary$coefficients
+
+
+glmModel <- predict(prostate.t.e.lm, newdata = prostate.train.exclude)
+
+prostate.train.summary$sigma
+prostate.train.summary$r.squared
+
+
+remove(pvalue)
+pvalue <- vector(mode="character", length=10)
+
+for (i in 0:9) {
+(prostate.train.exclude.sme <- prostate.train.summary$sigma * sqrt(prostate.train.summary$cov.unscaled[i,i]))
+(t <- prostate.t.e.lm$coefficients[i]/prostate.train.exclude.sme)
+pvalue[i] <- 2 * (1 - pt(t, prostate.t.e.lm$df.residual)) ; 
+}
+prostate.train.summary
+coef(prostate.train.summary)
+
+```
+### The p-value for each term tests the null hypothesis that the coefficient is equal to zero (no effect). A low p-value (< 0.05) indicates that you can reject the null hypothesis. In other words, a predictor that has a low p-value is likely to be a meaningful addition to your model because changes in the predictor's value are related to changes in the response variable. Conversely, a larger (insignificant) p-value suggests that changes in the predictor are not associated with changes in the response. So here the lcavol and lweight are the two most important factors on the output because they have very small p-values. Here It was a little bit confusing for me because 3 out of 9 p-values calculated by my formula are slightly different with the pvalues calculated by summary.
+
+
+4 Compute the `mean squared error` evaluation metric on the test dataset and compare it to the corresponding metric on the training dataset. Discuss.
+
+```{r}
+## Put your R code here.
+y.pred.train <- predict(prostate.t.e.lm, newdata=prostate.train.exclude, type="response")
+#y.pred.train <- round(y.pred.train)
+mean.rsquared.train <- mean((y.pred.train-prostate.train$lpsa)^2)  
+mean.rsquared.train
+
+y.pred.test <- predict(prostate.t.e.lm, newdata=prostate.test.exclude, type="response")
+#y.pred.test <- round(y.pred.test)
+mean.rsquared.test <- mean((y.pred.test-prostate.test$lpsa)^2)
+mean.rsquared.test
+```
+The results shows that the mean R-Squared for the training data is smaller than the test data which we would have expected since the training dataset was originally used to fit the data so it should have lesser amount or R-squared than testing data set.
+
+5 Perform residual regression diagnostics, including plots, on the model in 3 to determine if deficiencies are present in the model, including outliers. Discuss.
+
+```{r}
+## Put your R code here.
+
+plot(prostate.t.e.lm$fit, prostate.t.e.lm$res, xlab="Predicted lpsa", ylab="Residual lpsa")
+abline(h=0)
+jackres <- rstudent(prostate.t.e.lm) # The jacknifed residuals
+
+order(jackres)
+jackres[c(34,28,45)]
+
+
+prostate.t.e.lm$df.residual
+
+plot(jackres, ylab="Jacknife residuals")
+abline(h=0)
+
+prostate.train[34,]
+prostate.train.exclude[34,]$lpsa
+qt(0.05/2, 58)
+qt(0.05/(2*67), 58)
+
+prostate.train.exclude[28,]$lpsa
+prostate.train[28,]
+jackres[28]
+qt(0.05/2, 58)
+qt(0.05/(2*67), 58)
+
+prostate.train[45,]
+prostate.train.exclude[45,]$lpsa
+jackres[45]
+qt(0.05/2, 58)
+qt(0.05/(2*67), 58)
+
+```
+The residuals and Jacknifed residuals should be compared to say if those extreme points are outlier or not. Here it seems that they are close so these are not outlier I think!
+
+
+6 Perform a subset selection of the input variables in the training dataset using the R function `step`. What is your final model? Discuss the proposed final (reduced) model.
+
+```{r}
+## Put your R code here.
+prostate.step <- step(prostate.t.e.lm); # gleason is eliminated by step function
+prostate.step.lm <- lm(lpsa ~ lcavol + lweight + age + lbph + svi + lcp + pgg45)
+
+summary(prostat.train.exclude.lm)
+summary(prostate.step.lm)
+
+
+# gleason is eliminated from the model. r-squared are now smaller as well as p-value. 
+```
+
+
+7 For the reduced model compute the `mean squared error` evaluation metric on the test dataset and compare it to the corresponding metric on the training dataset. Discuss.
+
+```{r}
+## Put your R code here.
+y.pred.train <- predict(prostate.step.lm, newdata=prostate.train.exclude, type="response")
+#y.pred.train <- round(y.pred.train)
+mean.rsquared.train <- mean((y.pred.train-prostate.train$lpsa)^2)  
+
+y.pred.train
+
+
+y.pred.test <- predict(prostate.step.lm, newdata=prostate.test.exclude, type="response")
+#y.pred.test <- round(y.pred.test)
+mean.rsquared.test <- mean((y.pred.test-prostate.test$lpsa)^2)
+
+y.pred.test
+summary(prostate.t.e.lm)
+
+# r-squared for the test data is smaller than the r-squared of training data but they are almost close to each other thus we are not overfitting.
+
+```  
+
+8 Perform residual regression diagnostics, including plots, on the reduced model in 6 to determine if deficiencies are present in the model. Is the final model reasonable? Discuss.
+
+```{r}
+## Put your R code here.
+plot(prostate.t.e.lm$fit, prostate.t.e.lm$res, xlab="Predicted lpsa", ylab="Residual lpsa")
+abline(h=0)
+jackres <- rstudent(prostate.t.e.lm) # The jacknifed residuals
+
+
+plot(prostate.step.lm$fit, prostate.step.lm$res, xlab="Predicted lpsa", ylab="Residual lpsa")
+abline(h=0)
+jackres <- rstudent(prostate.step.lm) # The jacknifed residuals
+
+plot(jackres, ylab="Jacknife residuals")
+abline(h=0)
+```  
+From the plot it seems that the outliers are now elimiating from the plot.
+
+
+9 Cross validate your reduced model on the training data using 10-fold and leave-one-out CV from the package `boot`.
+
+```{r}
+## Put your R code here.
+library(boot)
+library(ElemStatLearn)
+#attach(prostate)
+
+prostate.train.exclude2 <- subset(prostate.train, select = -c(gleason ) )
+prostate.test.exclude2 <- subset(prostate.test, select = -c(gleason ) )
+
+prostate.glm <- glm(lpsa ~ lcavol + lweight + age + lbph + svi + lcp + pgg45, data=prostate.train.exclude2)
+cv.glm(prostate.train.exclude2, prostate.glm)$delta
+
+set.seed(123)
+prostate.glm2 <- glm(lpsa ~ lcavol + lweight + age + lbph + svi + lcp + pgg45, data=prostate.train.exclude2)
+cv.glm(prostate.train.exclude2, prostate.glm2, K=10)$delta
+
+
+```  
+
+10 Run regularized regressions (ridge and lasso) on the full model for the training data. Discuss the results in comparison with the full model above.
+
+```{r}
+## Put your R code here.
+library(faraway)
+data(prostate)
+attach(prostate)
+library(glmnet)
+prostate.x <- model.matrix( lpsa ~ ., prostate)[, -9]
+prostate.y <- prostate$lpsa
+
+# The least square fit
+prostate.ls <- glmnet(prostate.x, prostate.y, alpha=0, lambda=0)
+coef(prostate.ls)
+predict(prostate.ls, prostate.x[1:10,])
+
+
+
+prostate.ridge <- glmnet(prostate.x, prostate.y, alpha=0, nlambda=20)
+print(prostate.ridge)
+# Here we can see when the lamda increases the coefficients goes to zero so we do variable selection
+plot(prostate.ridge, xvar="lambda", label=TRUE)
+
+plot(prostate.ridge, xvar="dev", label=TRUE)
+
+set.seed(1)
+prostate.cv0 <- cv.glmnet(prostate.x, prostate.y, type.measure="mae", nfolds=10, alpha=0)
+#This is minumum of lambda in ridge regression ( alpha =0 )
+prostate.cv0$lambda.min
+# Here we see that the coeffiencts are close to zero but not exactly zero ( actually in the lasso the regression tends to go zero and here they will go close to each other)
+coef(prostate.cv0, s="lambda.min")
+
+#  comparing the optimal ridge regression with corresponding regression coefficients and  predicted values in the following
+predict(prostate.cv0, newx = prostate.x[1:10,], s = "lambda.min")
+
+prostate.lasso <- glmnet(prostate.x, prostate.y, alpha=1, nlambda=20)
+print(prostate.lasso)
+
+# we see that the variables go to zero for large lambda
+plot(prostate.lasso, xvar="lambda", label=TRUE)
+plot(prostate.lasso, xvar="dev", label=TRUE)
+
+prostate.cv1 <- cv.glmnet(prostate.x, prostate.y, type.measure="mae", nfolds=10, alpha=1)
+prostate.cv1$lambda.min
+coef(prostate.cv1, s="lambda.min")
+predict(prostate.cv1, newx = prostate.x[1:5,], s = "lambda.min")
+
+# in the above question the step function elimiate the gleason but here it is different. in the lasso "age" is very close to zero and in the ridge "lcp" and then "age".
+y.pred.train <- predict(prostate.t.e.lm, newdata=prostate.train.exclude, type="response")
+
+
+```  
+
