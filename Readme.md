@@ -3,7 +3,7 @@
 In this tutorial I am trying to explaing how we should use regression analsys through an application.
 This work was done as one of my assignment for Data Scinece course with Prof. Jim Harner. 
 
-## Explanation of the Probelm
+## Explanation of the Probel
 Stamey et al. examined the correlation between the level of prostate-specific antigen and a number of clinical measures in men who were about to receive a radical prostatectomy. The input variables are log cancer volume (`lcavol`), log prostate weight (`lweight`), `age`, log of the amount of benign prostatic hyperplasia (`lbph`), seminal vesicle invasion (`svi`), log of capsular penetration (`lcp`), Gleason score (`gleason`), and percent of Gleason scores 4 or 5 (`pgg45`). The output (response) variable is the log of prostate-specific antigen (`lpsa`). The `train` logical variable indicates whether the observation is part of the training dataset (`train = TRUE`) or the test dataset (`train = FALSE`).
 
 The `prostate` data can be found in the `ElemStatLearn` R package.
